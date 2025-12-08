@@ -1,0 +1,6 @@
+[submodule "spla"]
+	path = spla
+	url = https://github.com/SparseLinearAlgebra/spla
+[submodule "GraphBLAS"]
+	path = GraphBLAS
+	url = https://github.com/DrTimothyAldenDavis/GraphBLAS

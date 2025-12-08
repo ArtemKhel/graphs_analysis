@@ -1,0 +1,85 @@
+#include "triangles_counting.hpp"
+#include <stdexcept>
+#include <fstream>
+#include <sstream>
+#include <chrono>
+#include <iostream>
+#include <algorithm>
+#include "utils.hpp"
+
+namespace tc_gb
+{
+    int64_t triangles_counting(GrB_Matrix A, bool triangular)
+    {
+        GrB_Matrix squared;
+        GrB_Index n;
+        GrB_Matrix_nrows(&n, A);
+
+        GrB_Matrix_new(&squared, GrB_UINT32, n, n);
+
+        GrB_mxm(squared, A, nullptr, GxB_PLUS_TIMES_UINT32, A, A, nullptr);
+
+        int64_t sum = 0;
+        GrB_Matrix_reduce_INT64(&sum, nullptr, GrB_PLUS_MONOID_UINT32, squared, nullptr);
+
+        GrB_Matrix_free(&squared);
+
+        return triangular ? sum : sum / 6;
+    }
+
+    int64_t burkhardt(GrB_Matrix A)
+    {
+        return triangles_counting(A, false);
+    }
+
+    int64_t sandia(GrB_Matrix A)
+    {
+        return triangles_counting(A, true);
+    }
+
+    std::vector<double> benchmark(const char *filename, bool triangular, const int num_iters)
+    {
+        std::vector<double> iteration_times;
+        iteration_times.reserve(num_iters);
+
+        try
+        {
+            GrB_init(GrB_NONBLOCKING);
+
+            GrB_Matrix A;
+            A = gb_utils::load_graph(filename, triangular);
+
+            for (int i = 0; i < num_iters; ++i)
+            {
+                auto start = std::chrono::high_resolution_clock::now();
+                int answer;
+                if (triangular)
+                {
+                    answer = sandia(A);
+                }
+                else
+                {
+                    answer = burkhardt(A);
+                }
+                auto end = std::chrono::high_resolution_clock::now();
+
+                std::chrono::duration<double> elapsed = end - start;
+
+                std::cout << (triangular ? "GB_Sandia" : "GB_Burkhardt")
+                          << " Iteration " << i + 1 << ": " << elapsed.count() << " s"
+                          << ", triangles: " << answer << "\n";
+                iteration_times.push_back(elapsed.count());
+            }
+        }
+        catch (const std::exception &e)
+        {
+            GrB_finalize();
+            std::cerr << "Error: " << e.what() << std::endl;
+            throw;
+        }
+        GrB_finalize();
+
+        return iteration_times;
+    }
+
+}
