@@ -6,6 +6,7 @@
 #include <string>
 #include <stdexcept>
 #include <limits.h>
+#include "utils.hpp"
 
 void ReduceByVectors(spla::ref_ptr<spla::Scalar> &r, spla::ref_ptr<spla::Matrix> &m,
                      spla::ref_ptr<spla::OpBinary> &op, spla::ref_ptr<spla::Descriptor> &desc)
@@ -49,6 +50,14 @@ namespace msbfs_spla
 {
     spla::ref_ptr<spla::Matrix> msbfs(spla::ref_ptr<spla::Matrix> A, const std::vector<int> &sources)
     {
+        // TODO: decs
+
+        // spla_utils::print_matrix(A);
+        // for (auto s : sources)
+        // {
+        //     std::cout << "Source: " << s << std::endl;
+        // }
+
         spla::ref_ptr<spla::Descriptor> desc = spla::Descriptor::make();
         desc->set_early_exit(true);
         desc->set_struct_only(true);
@@ -64,8 +73,8 @@ namespace msbfs_spla
 
         bool fronts_empty = false;
 
-        auto parents_ = spla::Matrix::make(nsrc, nrows, spla::INT);
-        parents_->set_fill_value(spla::Scalar::make_int(0));
+        auto parents = spla::Matrix::make(nsrc, nrows, spla::INT);
+        parents->set_fill_value(spla::Scalar::make_int(0));
 
         spla::ref_ptr<spla::Matrix> p = spla::Matrix::make(nsrc, nrows, spla::INT);
         p->set_fill_value(spla::Scalar::make_int(0));
@@ -82,50 +91,46 @@ namespace msbfs_spla
         for (auto s : sources)
         {
             prev_fronts->set_int(i, s, s + 1);
-            parents_->set_int(i, s, s + 1);
+            parents->set_int(i, s, s + 1);
             ++i;
         }
+        // std::cout << "init prev fronts";
+        // spla_utils::print_matrix(prev_fronts);
+        // std::cout << "init parents";
+        // spla_utils::print_matrix(parents);
 
-        // auto start = std::chrono::high_resolution_clock::now();
-        auto x = spla::OpBinary::make_int(std::string("MIN_NON_ZERO_INT"), std::string("test"),
+        auto min_non_zero_int = spla::OpBinary::make_int(std::string("MIN_NON_ZERO_INT"),
+                                          std::string("test"),
                                           std::function<spla::T_INT(spla::T_INT, spla::T_INT)>([](spla::T_INT a, spla::T_INT b)
                                                                                                {
-        if (a == 0)
-        {
-            return b;
-        }
-        return std::min(a, b); }));
+            if (a == 0)
+            {
+                return b;
+            }
+            return std::min(a, b); }));
+
         while (!fronts_empty)
         {
             spla::exec_mxm(p, prev_fronts, A, spla::FIRST_INT,
                            // spla::MIN_NON_ZERO_INT,
-                           x,
+                           min_non_zero_int,
                            spla::Scalar::make_int(0), desc);
 
-            spla::exec_m_emult(p_mask, p, parents_, spla::BONE_INT, desc);
+            spla::exec_m_emult(p_mask, p, parents, spla::BONE_INT, desc);
 
-            spla::exec_m_eadd(p_updated, parents_, p, spla::FIRST_INT, desc);
+            spla::exec_m_eadd(p_updated, parents, p, spla::FIRST_INT, desc);
 
             ApplyMaskOnFront(p, p_mask, desc);
 
             ReduceByVectors(frontier_size, p, spla::PLUS_INT, desc);
 
             std::swap(p, prev_fronts);
-            std::swap(p_updated, parents_);
+            std::swap(p_updated, parents);
 
+            // std::cout << "END Frontier size: " << frontier_size->as_int() << std::endl;
             fronts_empty = frontier_size->as_int() == 0;
         }
 
-        // auto end = std::chrono::high_resolution_clock::now();
-        // return std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
-        return parents_;
-
-        // spla::OpBinary::make_int(MIN_NON_ZERO_INT, MIN_NON_ZERO_INT, T_INT, {
-        //     if (a == 0)
-        //     {
-        //         return b;
-        //     }
-        //     return min(a, b);
-        // });
+        return parents;
     }
 }

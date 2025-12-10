@@ -1,13 +1,12 @@
-#include "triangles_counting.hpp"
 #include "utils.hpp"
 #include <stdexcept>
 #include <fstream>
 #include <sstream>
 #include <chrono>
-#include <iostream>
 #include <algorithm>
+#include <iostream>
 
-namespace gb_utils
+namespace graphblas_utils
 {
     // Extract upper triangle of A into *U.
     // strict = true → strict upper (j > i)
@@ -65,11 +64,11 @@ namespace gb_utils
         }
         infile.close();
         GrB_Matrix A;
-        GrB_Matrix_new(&A, GrB_INT64, nrows, ncols);
+        GrB_Matrix_new(&A, GrB_UINT64, nrows, ncols);
         for (const auto &[u, v] : edges)
         {
-            GrB_Matrix_setElement_INT64(A, 1, u, v);
-            GrB_Matrix_setElement_INT64(A, 1, v, u); // undirected
+            GrB_Matrix_setElement_UINT64(A, 1, u, v);
+            GrB_Matrix_setElement_UINT64(A, 1, v, u); // undirected
         }
         if (!triangular)
         {
@@ -78,9 +77,10 @@ namespace gb_utils
         else
         {
             GrB_Matrix U;
-            gb_utils::extract_upper(&U, A, true);
+            extract_upper(&U, A, true);
             GrB_Matrix_free(&A);
             return U;
         }
     }
+
 }

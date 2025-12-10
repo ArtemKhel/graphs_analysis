@@ -1,8 +1,7 @@
-#include "triangles_counting.hpp"
+#include "utils.hpp"
 
 namespace spla_utils
 {
-
     spla::ref_ptr<spla::Matrix> load_graph(const std::string &path, bool triangular)
     {
         spla::MtxLoader loader;
@@ -21,11 +20,26 @@ namespace spla_utils
         {
             if (!triangular || Ai[k] > Aj[k])
             {
-                A->set_int(Ai[k], Aj[k], 0); // TODO: this
+                A->set_int(Ai[k], Aj[k], 1);
             }
         }
 
         return A;
+    }
+
+    void print_matrix(const spla::ref_ptr<spla::Matrix> &matrix)
+    {
+        std::cout << std::endl;
+        for (uint i = 0; i < matrix->get_n_rows(); ++i)
+        {
+            for (uint j = 0; j < matrix->get_n_cols(); ++j)
+            {
+                int value;
+                matrix->get_int(i, j, value);
+                std::cout << value << " ";
+            }
+            std::cout << std::endl;
+        }
     }
 
 }

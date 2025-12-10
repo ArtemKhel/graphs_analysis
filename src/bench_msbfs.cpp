@@ -5,6 +5,7 @@
 #include <vector>
 #include <random>
 #include <chrono>
+#include <algorithm>
 #include "graphblas/msbfs.hpp"
 #include "graphblas/utils.hpp"
 #include "spla/utils.hpp"
@@ -17,24 +18,27 @@ int main(int argc, char* argv[]) {
     }
     std::string folder = argv[1];
     int num_iters = std::stoi(argv[2]);
-    std::vector<int> n_start_list = {2, 8, 32, 128, 512};
+    std::vector<int> n_start_list = {1, 2, 4, 8, 16, 32, 64};
     std::ofstream csv("msbfs_bench.csv");
     csv << "algo,dataset,n_start_vert,time" << std::endl;
-    std::mt19937 rng(42);
+    std::mt19937 rng(43);
     for (const auto& entry : std::filesystem::directory_iterator(folder)) {
         if (entry.is_regular_file() && entry.path().extension() == ".txt") {
             std::string dataset = entry.path().filename().string();
             std::string dataset_path = entry.path().string();
             std::cout << "\nRunning msbfs benchmarks for dataset: " << dataset << std::endl;
+
             GrB_init(GrB_NONBLOCKING);
-            GrB_Matrix A = gb_utils::load_graph(dataset_path, false);
+            GrB_Matrix A = graphblas_utils::load_graph(dataset_path, false);
             GrB_Index n;
             GrB_Matrix_nrows(&n, A);
             std::vector<GrB_Index> all_vertices(n);
             for (GrB_Index i = 0; i < n; ++i) all_vertices[i] = i;
             for (int n_start : n_start_list) {
                 if (n_start > n) continue;
+                std::cout << "N start = " << n_start << std::endl;
                 for (int iter = 0; iter < num_iters; ++iter) {
+                    std::cout << "." << std::flush;
                     std::shuffle(all_vertices.begin(), all_vertices.end(), rng);
                     std::vector<GrB_Index> starts(all_vertices.begin(), all_vertices.begin() + n_start);
 
@@ -46,6 +50,7 @@ int main(int argc, char* argv[]) {
                     csv << "GB_MSBFS," << dataset << "," << n_start << "," << elapsed.count() << std::endl;
                     GrB_Matrix_free(&parent);
                 }
+                std::cout << std::endl;
             }
             GrB_Matrix_free(&A);
             GrB_finalize();
@@ -54,7 +59,9 @@ int main(int argc, char* argv[]) {
             auto B = spla_utils::load_graph(dataset_path, false);
             for (int n_start : n_start_list) {
                 if (n_start > B->get_n_rows()) continue;
+                std::cout << "N start = " << n_start << std::endl;
                 for (int iter = 0; iter < num_iters; ++iter) {
+                    std::cout << "." << std::flush;
                     std::shuffle(all_vertices.begin(), all_vertices.end(), rng);
                     std::vector<int> starts(all_vertices.begin(), all_vertices.begin() + n_start);
 
@@ -65,6 +72,7 @@ int main(int argc, char* argv[]) {
 
                     csv << "SPLA_MSBFS," << dataset << "," << n_start << "," << elapsed.count() << std::endl;
                 }
+                std::cout << std::endl;
             }
         }
     }
