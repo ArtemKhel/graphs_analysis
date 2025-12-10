@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build-and-bench:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Cache GraphBLAS build
+        uses: actions/cache@v4
+        with:
+          path: build/GraphBLAS
+          key: gb-${{ runner.os }}-${{ hashFiles('GraphBLAS/**') }}
+          restore-keys: |
+            gb-${{ runner.os }}-
+
+      - name: Cache spla build
+        uses: actions/cache@v4
+        with:
+          path: build/spla
+          key: spla-${{ runner.os }}-${{ hashFiles('spla/**') }}
+          restore-keys: |
+            spla-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake
+
+      - name: Build project
+        run: |
+          cmake -S . -B build
+          cmake --build build -- -j$(nproc)
+
+      - name: Run bench_tc on dataset_tc/test/
+        run: |
+          ./build/bench_tc ./dataset_tc/test/ 1
+
+      - name: Run bench_msbfs on dataset_msbfs/test/
+        run: |
+          ./build/bench_msbfs ./dataset_msbfs/test/ 1
+

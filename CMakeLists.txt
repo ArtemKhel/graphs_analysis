@@ -21,7 +21,7 @@ add_executable(bench_tc
 
 target_link_libraries(bench_tc PRIVATE
         spla
-        graphblas
+        GraphBLAS
 )
 
 target_include_directories(bench_tc PRIVATE
