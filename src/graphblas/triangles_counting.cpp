@@ -42,40 +42,32 @@ namespace tc_graphblas
         std::vector<double> iteration_times;
         iteration_times.reserve(num_iters);
 
-        try
+        GrB_init(GrB_NONBLOCKING);
+
+        GrB_Matrix A;
+        A = graphblas_utils::load_graph(filename, triangular);
+
+        for (int i = 0; i < num_iters; ++i)
         {
-            GrB_init(GrB_NONBLOCKING);
-
-            GrB_Matrix A;
-            A = graphblas_utils::load_graph(filename, triangular);
-
-            for (int i = 0; i < num_iters; ++i)
+            auto start = std::chrono::high_resolution_clock::now();
+            uint64_t answer;
+            if (triangular)
             {
-                auto start = std::chrono::high_resolution_clock::now();
-                uint64_t answer;
-                if (triangular)
-                {
-                    answer = sandia(A);
-                }
-                else
-                {
-                    answer = burkhardt(A);
-                }
-                auto end = std::chrono::high_resolution_clock::now();
-
-                std::chrono::duration<double> elapsed = end - start;
-
-                std::cout << (triangular ? "GB_Sandia" : "GB_Burkhardt")
-                          << " Iteration " << i + 1 << ": " << elapsed.count() << " s" << std::endl;
-                iteration_times.push_back(elapsed.count());
+                answer = sandia(A);
             }
+            else
+            {
+                answer = burkhardt(A);
+            }
+            auto end = std::chrono::high_resolution_clock::now();
+
+            std::chrono::duration<double> elapsed = end - start;
+
+            std::cout << (triangular ? "GB_Sandia" : "GB_Burkhardt")
+                      << " Iteration " << i + 1 << ": " << elapsed.count() << " s" << std::endl;
+            iteration_times.push_back(elapsed.count());
         }
-        catch (const std::exception &e)
-        {
-            GrB_finalize();
-            std::cerr << "Error: " << e.what() << std::endl;
-            throw;
-        }
+
         GrB_finalize();
 
         return iteration_times;

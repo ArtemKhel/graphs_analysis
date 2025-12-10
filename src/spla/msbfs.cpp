@@ -9,20 +9,19 @@
 #include "utils.hpp"
 
 void ReduceByVectors(spla::ref_ptr<spla::Scalar> &r, spla::ref_ptr<spla::Matrix> &m,
-                     spla::ref_ptr<spla::OpBinary> &op, spla::ref_ptr<spla::Descriptor> &desc)
+                     spla::ref_ptr<spla::OpBinary> &op)
 {
     spla::ref_ptr<spla::Vector> v = spla::Vector::make(m->get_n_cols(), spla::INT);
 
-    spla::exec_m_reduce_by_row(v, m, op, spla::Scalar::make_int(0), desc);
-    spla::exec_v_reduce(r, spla::Scalar::make_int(0), v, op, desc);
+    spla::exec_m_reduce_by_row(v, m, op, spla::Scalar::make_int(0));
+    spla::exec_v_reduce(r, spla::Scalar::make_int(0), v, op);
 }
 
 void ApplyMaskOnFront(spla::ref_ptr<spla::Matrix> &front,
-                      spla::ref_ptr<spla::Matrix> &mask,
-                      spla::ref_ptr<spla::Descriptor> &desc)
+                      spla::ref_ptr<spla::Matrix> &mask)
 {
     spla::ref_ptr<spla::Scalar> nnz_mask_count = spla::Scalar::make_int(0);
-    ReduceByVectors(nnz_mask_count, mask, spla::PLUS_INT, desc);
+    ReduceByVectors(nnz_mask_count, mask, spla::PLUS_INT);
     std::vector<spla::T_INT> bf1, bf2, bf3;
 
     spla::ref_ptr<spla::MemView> keys1_view =
@@ -50,18 +49,6 @@ namespace msbfs_spla
 {
     spla::ref_ptr<spla::Matrix> msbfs(spla::ref_ptr<spla::Matrix> A, const std::vector<int> &sources)
     {
-        // TODO: decs
-
-        // spla_utils::print_matrix(A);
-        // for (auto s : sources)
-        // {
-        //     std::cout << "Source: " << s << std::endl;
-        // }
-
-        spla::ref_ptr<spla::Descriptor> desc = spla::Descriptor::make();
-        desc->set_early_exit(true);
-        desc->set_struct_only(true);
-
         auto nsrc = sources.size();
         auto nrows = A->get_n_rows();
 
@@ -94,40 +81,36 @@ namespace msbfs_spla
             parents->set_int(i, s, s + 1);
             ++i;
         }
-        // std::cout << "init prev fronts";
-        // spla_utils::print_matrix(prev_fronts);
-        // std::cout << "init parents";
-        // spla_utils::print_matrix(parents);
 
-        auto min_non_zero_int = spla::OpBinary::make_int(std::string("MIN_NON_ZERO_INT"),
-                                          std::string("test"),
-                                          std::function<spla::T_INT(spla::T_INT, spla::T_INT)>([](spla::T_INT a, spla::T_INT b)
-                                                                                               {
-            if (a == 0)
-            {
-                return b;
-            }
-            return std::min(a, b); }));
+        auto min_non_zero_int =
+            spla::OpBinary::make_int(
+                std::string("MIN_NON_ZERO_INT"),
+                std::string("test"),
+                std::function<spla::T_INT(spla::T_INT, spla::T_INT)>(
+                    [](spla::T_INT a, spla::T_INT b)
+                    {
+                        if (a == 0)
+                        {
+                            return b;
+                        }
+                        return std::min(a, b);
+                    }));
 
         while (!fronts_empty)
         {
-            spla::exec_mxm(p, prev_fronts, A, spla::FIRST_INT,
-                           // spla::MIN_NON_ZERO_INT,
-                           min_non_zero_int,
-                           spla::Scalar::make_int(0), desc);
+            spla::exec_mxm(p, prev_fronts, A, spla::FIRST_INT, min_non_zero_int, spla::Scalar::make_int(0));
 
-            spla::exec_m_emult(p_mask, p, parents, spla::BONE_INT, desc);
+            spla::exec_m_emult(p_mask, p, parents, spla::BONE_INT);
 
-            spla::exec_m_eadd(p_updated, parents, p, spla::FIRST_INT, desc);
+            spla::exec_m_eadd(p_updated, parents, p, spla::FIRST_INT);
 
-            ApplyMaskOnFront(p, p_mask, desc);
+            ApplyMaskOnFront(p, p_mask);
 
-            ReduceByVectors(frontier_size, p, spla::PLUS_INT, desc);
+            ReduceByVectors(frontier_size, p, spla::PLUS_INT);
 
             std::swap(p, prev_fronts);
             std::swap(p_updated, parents);
 
-            // std::cout << "END Frontier size: " << frontier_size->as_int() << std::endl;
             fronts_empty = frontier_size->as_int() == 0;
         }
 

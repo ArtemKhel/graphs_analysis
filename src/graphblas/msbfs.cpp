@@ -1,7 +1,6 @@
 #include "msbfs.hpp"
 #include <stdexcept>
 
-// Multi-source BFS: returns parent matrix (sources x n)
 GrB_Matrix msbfs(GrB_Matrix A, const std::vector<GrB_Index> &sources)
 {
     GrB_Index n;
@@ -14,7 +13,6 @@ GrB_Matrix msbfs(GrB_Matrix A, const std::vector<GrB_Index> &sources)
     GrB_Matrix_new(&parent, GrB_INT64, nsrc, n);
     GrB_Matrix_new(&next_parents, GrB_INT64, nsrc, n);
 
-    // Initialize
     for (GrB_Index i = 0; i < nsrc; ++i)
     {
         GrB_Matrix_setElement_BOOL(front, true, i, sources[i]);
@@ -24,7 +22,7 @@ GrB_Matrix msbfs(GrB_Matrix A, const std::vector<GrB_Index> &sources)
 
     while (true)
     {
-        // next_parents = front * A (semiring: ANY_SECONDI)
+        // next_parents = front * A
         GrB_mxm(next_parents, GrB_NULL, GrB_NULL, GxB_ANY_SECONDI_INT64, front, A, GrB_NULL);
 
         // not_visited = !visited

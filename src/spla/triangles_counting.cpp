@@ -47,37 +47,29 @@ namespace tc_spla
         std::vector<double> iteration_times;
         iteration_times.reserve(num_iters);
 
-        try
+        ref_ptr<Matrix> A = spla_utils::load_graph(filename, triangular);
+
+        Library::get()->set_force_no_acceleration(true);
+
+        for (int i = 0; i < num_iters; ++i)
         {
-            ref_ptr<Matrix> A = spla_utils::load_graph(filename, triangular);
-
-            Library::get()->set_force_no_acceleration(true);
-
-            for (int i = 0; i < num_iters; ++i)
+            auto start = std::chrono::high_resolution_clock::now();
+            uint64_t answer;
+            if (triangular)
             {
-                auto start = std::chrono::high_resolution_clock::now();
-                uint64_t answer;
-                if (triangular)
-                {
-                    answer = sandia(A);
-                }
-                else
-                {
-                    answer = burkhardt(A);
-                }
-                auto end = std::chrono::high_resolution_clock::now();
-
-                std::chrono::duration<double> elapsed = end - start;
-
-                std::cout << (triangular ? "SPLA_Sandia" : "SPLA_Burkhardt")
-                          << " Iteration " << i + 1 << ": " << elapsed.count() << " s" << std::endl;
-                iteration_times.push_back(elapsed.count());
+                answer = sandia(A);
             }
-        }
-        catch (const std::exception &e)
-        {
-            std::cerr << "Error: " << e.what() << std::endl;
-            throw;
+            else
+            {
+                answer = burkhardt(A);
+            }
+            auto end = std::chrono::high_resolution_clock::now();
+
+            std::chrono::duration<double> elapsed = end - start;
+
+            std::cout << (triangular ? "SPLA_Sandia" : "SPLA_Burkhardt")
+                        << " Iteration " << i + 1 << ": " << elapsed.count() << " s" << std::endl;
+            iteration_times.push_back(elapsed.count());
         }
 
         return iteration_times;

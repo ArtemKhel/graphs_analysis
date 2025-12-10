@@ -6,7 +6,6 @@ namespace spla_utils
     {
         spla::MtxLoader loader;
         if (!loader.load(path, true, true, true))
-        // if (!loader.load(path, false, true, true))
         {
             throw std::runtime_error("Failed to load graph: " + path);
         }
