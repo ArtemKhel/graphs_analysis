@@ -12,3 +12,4 @@ wheels/
 _[^_]*
 *.csv
 TODO.md
+dataset*/*.txt
