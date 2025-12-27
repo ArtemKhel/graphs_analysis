@@ -24,6 +24,11 @@ namespace tc_graphblas
 
         GrB_Matrix_free(&squared);
 
+        if (!triangular && sum % 6 != 0)
+        {
+            std::cerr << "Warning: triangle count is not multiple of 6 in Burkhardt algorithm" << std::endl;
+        }
+
         return triangular ? sum : sum / 6;
     }
 

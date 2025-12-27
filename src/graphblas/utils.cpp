@@ -8,6 +8,34 @@
 
 namespace graphblas_utils
 {
+    void print_matrix(GrB_Matrix A)
+    {
+        GrB_Index nrows, ncols;
+        GrB_Matrix_nrows(&nrows, A);
+        GrB_Matrix_ncols(&ncols, A);
+
+        for (GrB_Index i = 0; i < nrows; ++i)
+        {
+            for (GrB_Index j = 0; j < ncols; ++j)
+            {
+                uint64_t val;
+                GrB_Info info = GrB_Matrix_extractElement_UINT64(&val, A, i, j);
+                if (info == GrB_SUCCESS)
+                {
+                    std::cout << val << " ";
+                }
+                else if (info == GrB_NO_VALUE)
+                {
+                    std::cout << "0 ";
+                }
+                else
+                {
+                    throw std::runtime_error("Error extracting element from matrix");
+                }
+            }
+            std::cout << std::endl;
+        }
+    }
     // Extract upper triangle of A into *U.
     // strict = true → strict upper (j > i)
     // strict = false → inclusive upper (j ≥ i)
@@ -60,7 +88,7 @@ namespace graphblas_utils
             GrB_Index u, v;
             if (!(iss >> u >> v))
                 continue;
-            edges.emplace_back(u, v);
+            edges.emplace_back(u - 1, v - 1);
         }
         infile.close();
         GrB_Matrix A;

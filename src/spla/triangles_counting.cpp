@@ -4,43 +4,40 @@
 
 namespace tc_spla
 {
+    using namespace spla;
 
-    uint64_t triangles_counting(spla::ref_ptr<spla::Matrix> A, bool triangular)
+    void triangles_counting(
+        int &ntrins,
+        const ref_ptr<Matrix> &A,
+        const ref_ptr<Matrix> &B)
     {
-        using namespace spla;
-
-        const uint n = A->get_n_cols();
-
-        ref_ptr<Matrix> B = Matrix::make(n, n, UINT);
-
-        ref_ptr<Scalar> zero = Scalar::make_uint(0);
-        ref_ptr<Scalar> result = Scalar::make(UINT);
-
-        exec_mxmT_masked(B, // result
-                         A, // mask
-                         A, // left
-                         A, // right
-                         MULT_UINT, PLUS_UINT, GTZERO_UINT, zero);
-        exec_m_reduce(result, zero, B, PLUS_UINT);
-
-        uint64_t count = result->as_uint();
-
-        B->clear();
-
-        return triangular ? count : count / 6;
+        ref_ptr<Scalar> zero = Scalar::make_int(0);
+        ref_ptr<Scalar> result = Scalar::make(INT);
+        auto stat = exec_mxmT_masked(B, // result
+                                     A, // mask
+                                     A, // left
+                                     A, // right
+                                     MULT_INT, PLUS_INT, GTZERO_INT, zero);
+        stat = exec_m_reduce(result, zero, B, PLUS_INT);
+        ntrins = result->as_int();
     }
 
-    uint64_t sandia(spla::ref_ptr<spla::Matrix> A)
+    void sandia(int &ntrins, const ref_ptr<Matrix> &A, const ref_ptr<Matrix> &B)
     {
-        return triangles_counting(A, true);
+        triangles_counting(ntrins, A, B);
     }
 
-    uint64_t burkhardt(spla::ref_ptr<spla::Matrix> A)
+    void burkhardt(int &ntrins, const ref_ptr<Matrix> &A, const ref_ptr<Matrix> &B)
     {
-        return triangles_counting(A, false);
+        triangles_counting(ntrins, A, B);
+        if (ntrins % 6 != 0)
+        {
+            std::cerr << "Warning: triangle count is not multiple of 6 in Burkhardt algorithm" << std::endl;
+        }
+        ntrins = ntrins / 6;
     }
 
-    std::vector<double> benchmark(const char *filename, bool triangular, const int num_iters)
+    std::vector<double> benchmark(const char *filename, bool triangular, const int num_iters, bool accelerated)
     {
         using namespace spla;
 
@@ -48,27 +45,39 @@ namespace tc_spla
         iteration_times.reserve(num_iters);
 
         ref_ptr<Matrix> A = spla_utils::load_graph(filename, triangular);
+        uint N = A->get_n_rows();
+        ref_ptr<Matrix> B_cpu = Matrix::make(N, N, INT);
+        ref_ptr<Matrix> B_acc = Matrix::make(N, N, INT);
 
-        Library::get()->set_force_no_acceleration(true);
+        Library::get()->set_force_no_acceleration(!accelerated);
 
         for (int i = 0; i < num_iters; ++i)
         {
             auto start = std::chrono::high_resolution_clock::now();
-            uint64_t answer;
+            int answer = 0;
             if (triangular)
             {
-                answer = sandia(A);
+                sandia(answer, A, B_acc);
             }
             else
             {
-                answer = burkhardt(A);
+                burkhardt(answer, A, B_acc);
             }
             auto end = std::chrono::high_resolution_clock::now();
 
+            if (accelerated)
+            {
+                B_acc->clear();
+            }
+            else
+            {
+                B_cpu->clear();
+            }
+
             std::chrono::duration<double> elapsed = end - start;
 
-            std::cout << (triangular ? "SPLA_Sandia" : "SPLA_Burkhardt")
-                        << " Iteration " << i + 1 << ": " << elapsed.count() << " s" << std::endl;
+            std::cout << (triangular ? (accelerated ? "SPLAGPU_Sandia" : "SPLA_Sandia") : (accelerated ? "SPLAGPU_Burkhardt" : "SPLA_Burkhardt"))
+                      << " Iteration " << i + 1 << ": " << elapsed.count() << " s" << std::endl;
             iteration_times.push_back(elapsed.count());
         }
 

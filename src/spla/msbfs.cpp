@@ -8,110 +8,92 @@
 #include <limits.h>
 #include "utils.hpp"
 
-void ReduceByVectors(spla::ref_ptr<spla::Scalar> &r, spla::ref_ptr<spla::Matrix> &m,
-                     spla::ref_ptr<spla::OpBinary> &op)
-{
-    spla::ref_ptr<spla::Vector> v = spla::Vector::make(m->get_n_cols(), spla::INT);
+using namespace spla;
 
-    spla::exec_m_reduce_by_row(v, m, op, spla::Scalar::make_int(0));
-    spla::exec_v_reduce(r, spla::Scalar::make_int(0), v, op);
+void reduce_by_vectors(ref_ptr<Scalar> &r, ref_ptr<Matrix> &m, ref_ptr<OpBinary> &op)
+{
+    ref_ptr<Vector> v = Vector::make(m->get_n_cols(), INT);
+
+    exec_m_reduce_by_row(v, m, op, Scalar::make_int(0));
+    exec_v_reduce(r, Scalar::make_int(0), v, op);
 }
 
-void ApplyMaskOnFront(spla::ref_ptr<spla::Matrix> &front,
-                      spla::ref_ptr<spla::Matrix> &mask)
+void apply_mask_on_front(ref_ptr<Matrix> &front, ref_ptr<Matrix> &mask)
 {
-    spla::ref_ptr<spla::Scalar> nnz_mask_count = spla::Scalar::make_int(0);
-    ReduceByVectors(nnz_mask_count, mask, spla::PLUS_INT);
-    std::vector<spla::T_INT> bf1, bf2, bf3;
+    ref_ptr<Scalar> mask_nnz = Scalar::make_int(0);
+    reduce_by_vectors(mask_nnz, mask, PLUS_INT);
+    std::vector<T_INT> bf1, bf2, bf3;
 
-    spla::ref_ptr<spla::MemView> keys1_view =
-        spla::MemView::make(bf1.data(), nnz_mask_count->as_int());
-    spla::ref_ptr<spla::MemView> keys2_view =
-        spla::MemView::make(bf2.data(), nnz_mask_count->as_int());
-    spla::ref_ptr<spla::MemView> values_view =
-        spla::MemView::make(bf3.data(), nnz_mask_count->as_int());
+    ref_ptr<MemView> rows_view = MemView::make(bf1.data(), mask_nnz->as_int());
+    ref_ptr<MemView> cols_view = MemView::make(bf2.data(), mask_nnz->as_int());
+    ref_ptr<MemView> values_view = MemView::make(bf3.data(), mask_nnz->as_int());
 
-    mask->read(keys1_view, keys2_view, values_view);
+    mask->read(rows_view, cols_view, values_view);
 
-    spla::T_INT *keys1 = static_cast<spla::T_INT *>(keys1_view->get_buffer());
-    spla::T_INT *keys2 = static_cast<spla::T_INT *>(keys2_view->get_buffer());
-    spla::T_INT *values = static_cast<spla::T_INT *>(values_view->get_buffer());
+    T_INT *rows = static_cast<T_INT *>(rows_view->get_buffer());
+    T_INT *cols = static_cast<T_INT *>(cols_view->get_buffer());
+    T_INT *values = static_cast<T_INT *>(values_view->get_buffer());
 
-    for (spla::T_INT i = 0; i < nnz_mask_count->as_int(); ++i)
+    for (auto i = 0; i < mask_nnz->as_int(); ++i)
     {
         if (values[i] != INT_MAX)
         {
-            front->set_int(keys1[i], keys2[i], 0);
+            front->set_int(rows[i], cols[i], 0);
         }
     }
 }
 namespace msbfs_spla
 {
-    spla::ref_ptr<spla::Matrix> msbfs(spla::ref_ptr<spla::Matrix> A, const std::vector<int> &sources)
+    ref_ptr<Matrix> msbfs(ref_ptr<Matrix> A, const std::vector<int> &sources, bool accelerated)
     {
+        Library::get()->set_force_no_acceleration(!accelerated);
+
         auto nsrc = sources.size();
         auto nrows = A->get_n_rows();
 
-        spla::ref_ptr<spla::Matrix> prev_fronts =
-            spla::Matrix::make(nsrc, nrows, spla::INT);
-        prev_fronts->set_fill_value(spla::Scalar::make_int(0));
+        ref_ptr<Matrix> prev_front = Matrix::make(nsrc, nrows, INT);
+        prev_front->set_fill_value(Scalar::make_int(0));
 
-        spla::ref_ptr<spla::Scalar> frontier_size = spla::Scalar::make_int(nsrc);
+        ref_ptr<Scalar> front_size = Scalar::make_int(nsrc);
 
         bool fronts_empty = false;
 
-        auto parents = spla::Matrix::make(nsrc, nrows, spla::INT);
-        parents->set_fill_value(spla::Scalar::make_int(0));
+        ref_ptr<Matrix> parents = Matrix::make(nsrc, nrows, INT);
+        parents->set_fill_value(Scalar::make_int(0));
 
-        spla::ref_ptr<spla::Matrix> p = spla::Matrix::make(nsrc, nrows, spla::INT);
-        p->set_fill_value(spla::Scalar::make_int(0));
+        ref_ptr<Matrix> front = Matrix::make(nsrc, nrows, INT);
+        front->set_fill_value(Scalar::make_int(0));
 
-        spla::ref_ptr<spla::Matrix> p_updated =
-            spla::Matrix::make(nsrc, nrows, spla::INT);
-        p_updated->set_fill_value(spla::Scalar::make_int(0));
+        ref_ptr<Matrix> new_parents = Matrix::make(nsrc, nrows, INT);
+        new_parents->set_fill_value(Scalar::make_int(0));
 
-        spla::ref_ptr<spla::Matrix> p_mask =
-            spla::Matrix::make(nsrc, nrows, spla::INT);
-        p_mask->set_fill_value(spla::Scalar::make_int(0));
+        ref_ptr<Matrix> mask = Matrix::make(nsrc, nrows, INT);
+        mask->set_fill_value(Scalar::make_int(0));
 
         int i = 0;
         for (auto s : sources)
         {
-            prev_fronts->set_int(i, s, s + 1);
+            prev_front->set_int(i, s, s + 1);
             parents->set_int(i, s, s + 1);
             ++i;
         }
 
-        auto min_non_zero_int =
-            spla::OpBinary::make_int(
-                std::string("MIN_NON_ZERO_INT"),
-                std::string("test"),
-                std::function<spla::T_INT(spla::T_INT, spla::T_INT)>(
-                    [](spla::T_INT a, spla::T_INT b)
-                    {
-                        if (a == 0)
-                        {
-                            return b;
-                        }
-                        return std::min(a, b);
-                    }));
-
         while (!fronts_empty)
         {
-            spla::exec_mxm(p, prev_fronts, A, spla::FIRST_INT, min_non_zero_int, spla::Scalar::make_int(0));
+            exec_mxm(front, prev_front, A, FIRST_INT, MIN_NON_ZERO_INT, Scalar::make_int(0));
 
-            spla::exec_m_emult(p_mask, p, parents, spla::BONE_INT);
+            exec_m_emult(mask, front, parents, BONE_INT);
 
-            spla::exec_m_eadd(p_updated, parents, p, spla::FIRST_INT);
+            exec_m_eadd(new_parents, parents, front, FIRST_INT);
 
-            ApplyMaskOnFront(p, p_mask);
+            apply_mask_on_front(front, mask);
 
-            ReduceByVectors(frontier_size, p, spla::PLUS_INT);
+            reduce_by_vectors(front_size, front, PLUS_INT);
 
-            std::swap(p, prev_fronts);
-            std::swap(p_updated, parents);
+            std::swap(front, prev_front);
+            std::swap(new_parents, parents);
 
-            fronts_empty = frontier_size->as_int() == 0;
+            fronts_empty = front_size->as_int() == 0;
         }
 
         return parents;

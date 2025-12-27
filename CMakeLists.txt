@@ -3,8 +3,13 @@ project(triangles_counting)
 
 set(CMAKE_CXX_STANDARD 20)
 
+# set(CMAKE_BUILD_TYPE Debug CACHE STRING "" FORCE)
+
+add_compile_options(-fno-omit-frame-pointer -g)
+
 set(SPLA_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(SPLA_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(SPLA_BUILD_OPENCL ON CACHE BOOL "" FORCE)
 
 add_subdirectory(spla)
 add_subdirectory(GraphBLAS)
