@@ -15,22 +15,6 @@ jobs:
         with:
           submodules: true
 
-      - name: Cache GraphBLAS build
-        uses: actions/cache@v4
-        with:
-          path: build/GraphBLAS
-          key: gb-${{ runner.os }}-${{ hashFiles('GraphBLAS/**') }}
-          restore-keys: |
-            gb-${{ runner.os }}-
-
-      - name: Cache spla build
-        uses: actions/cache@v4
-        with:
-          path: build/spla
-          key: spla-${{ runner.os }}-${{ hashFiles('spla/**') }}
-          restore-keys: |
-            spla-${{ runner.os }}-
-
       - name: Install dependencies
         run: |
           sudo apt-get update
