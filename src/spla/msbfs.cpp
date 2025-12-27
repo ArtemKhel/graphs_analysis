@@ -78,6 +78,22 @@ namespace msbfs_spla
             ++i;
         }
 
+        auto MIN_NON_ZERO_INT = OpBinary::make_int(
+            "min_non_zero_int",
+            "min_non_zero_int"
+            "(int a, int b) {"
+            "    if (a == 0) return b;"
+            "    return (a < b) ? a : b;"
+            "}",
+            [](T_INT a, T_INT b)
+            {
+                if (a == 0)
+                {
+                    return b;
+                }
+                return std::min(a, b);
+            });
+
         while (!fronts_empty)
         {
             exec_mxm(front, prev_front, A, FIRST_INT, MIN_NON_ZERO_INT, Scalar::make_int(0));
